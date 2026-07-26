@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { decide, distTag, fetchPublished, missingEntryFiles, planPublish } from "../scripts/publish-workspaces.mjs";
+import { decide, distTag, fetchPublished, missingEntryFiles, planPublish, selectPack } from "../scripts/publish-workspaces.mjs";
 
 function fakeRegistry(t, handler) {
   const server = createServer(handler);
@@ -22,6 +22,15 @@ test("a prerelease never claims the latest dist tag", () => {
   assert.equal(distTag("1.0.0-next.0"), "next");
   assert.equal(distTag("0.1.0"), "latest");
   assert.equal(distTag("1.2.3"), "latest");
+});
+
+test("the tarball report is read from both npm pack --json shapes", () => {
+  const tarball = { name: "@pty-server/protocol", version: "1.0.0", integrity: "sha512-aaa" };
+  // npm 11 and earlier report an array; npm 12 reports an object keyed by package name.
+  assert.deepEqual(selectPack([tarball]), tarball);
+  assert.deepEqual(selectPack({ "@pty-server/protocol": tarball }), tarball);
+  assert.equal(selectPack([]), undefined);
+  assert.equal(selectPack({}), undefined);
 });
 
 test("a published version with a different artifact is a conflict, not a skip", () => {

@@ -33,13 +33,18 @@ export function distTag(version) {
   return version.includes("-") ? "next" : "latest";
 }
 
+export function selectPack(parsed) {
+  const [pack] = Array.isArray(parsed) ? parsed : Object.values(parsed ?? {});
+  return pack;
+}
+
 export function packPackage(dir) {
   const output = execFileSync("npm", ["pack", "--dry-run", "--json"], {
     cwd: resolve(root, dir),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "inherit"],
   });
-  const [pack] = JSON.parse(output);
+  const pack = selectPack(JSON.parse(output));
   if (pack === undefined) throw new Error(`npm pack produced no tarball for ${dir}`);
   const manifest = JSON.parse(readFileSync(resolve(root, dir, "package.json"), "utf8"));
   const missing = missingEntryFiles(manifest, pack.files ?? []);
