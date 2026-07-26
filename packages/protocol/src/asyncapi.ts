@@ -1,0 +1,175 @@
+import {
+  EventControlSchema,
+  EventReplyControlSchema,
+  ErrorControlSchema,
+  ExitControlSchema,
+  ReadyControlSchema,
+  ResizeControlSchema,
+  ResizedControlSchema,
+  SignalControlSchema,
+} from "./schemas.js";
+import type { ApiDocumentOptions } from "./openapi.js";
+
+type Document = Record<string, unknown>;
+
+const ref = (target: string): Document => ({ $ref: target });
+
+export function createAsyncApiDocument({ version }: ApiDocumentOptions): Document {
+  return {
+    asyncapi: "3.1.0",
+    info: {
+      title: "ptys terminal stream",
+      version,
+      description: "WebSocket terminal data plane for ptys sessions. Create and manage sessions through the OpenAPI HTTP control plane.",
+    },
+    servers: {
+      local: {
+        host: "127.0.0.1:7801",
+        protocol: "ws",
+        description: "Example ptys TCP listener. A server binds only its control socket by default, so replace this with an address passed to --listen or added with `ptys config listen add`.",
+        security: [ref("#/components/securitySchemes/bearerAuth")],
+      },
+    },
+    channels: {
+      sessionAttach: {
+        address: "/v1/sessions/{sessionId}/attach",
+        title: "Session attach stream",
+        description: "The upgrade is rejected with 401 for an invalid token, 403 for a disallowed Origin, or 404 when the session does not exist. A browser authenticates by offering the `ptys.bearer.<token>` WebSocket subprotocol; non-browser clients may use `Authorization: Bearer <token>`.",
+        parameters: {
+          sessionId: {
+            description: "Session identifier",
+            location: "$message.payload#/sessionId",
+          },
+        },
+        bindings: {
+          ws: {
+            method: "GET",
+            query: {
+              type: "object",
+              properties: {
+                readonly: { type: "string", enum: ["1", "true"], description: "Disables terminal input, resize, and signal frames." },
+                lossy: { type: "string", enum: ["1", "true"], description: "Allows a read-write client to receive coalesced terminal snapshots under backpressure." },
+                cols: { type: "string", pattern: "^[1-9][0-9]*$", description: "Initial terminal width." },
+                rows: { type: "string", pattern: "^[1-9][0-9]*$", description: "Initial terminal height." },
+              },
+            },
+          },
+        },
+        messages: {
+          resize: ref("#/components/messages/ResizeControl"),
+          signal: ref("#/components/messages/SignalControl"),
+          terminalInput: ref("#/components/messages/TerminalInput"),
+          ready: ref("#/components/messages/ReadyControl"),
+          resized: ref("#/components/messages/ResizedControl"),
+          exit: ref("#/components/messages/ExitControl"),
+          error: ref("#/components/messages/ErrorControl"),
+          terminalOutput: ref("#/components/messages/TerminalOutput"),
+        },
+      },
+      events: {
+        address: "/v1/events",
+        title: "Global event stream",
+        description: "Live global stream of custom and internal session events. Internal events include `session.created` (the public session record), `session.title`, `session.updated`, and `session.exited`; the latter carries `{ code, signal?, at }` after the session exit state is set. Request events include `requestId` and `ttl`, the request lifetime in seconds (zero means no timeout); ordinary events include neither. The upgrade uses the same bearer-token and Origin policy as session attach.",
+        bindings: { ws: { method: "GET" } },
+        messages: {
+          event: ref("#/components/messages/EventControl"),
+          reply: ref("#/components/messages/EventReplyControl"),
+          error: ref("#/components/messages/ErrorControl"),
+        },
+      },
+    },
+    operations: {
+      receiveResize: {
+        action: "receive",
+        channel: ref("#/channels/sessionAttach"),
+        messages: [ref("#/channels/sessionAttach/messages/resize")],
+        summary: "Receive a terminal resize request from a read-write client",
+      },
+      receiveSignal: {
+        action: "receive",
+        channel: ref("#/channels/sessionAttach"),
+        messages: [ref("#/channels/sessionAttach/messages/signal")],
+        summary: "Receive a process signal request from a read-write client",
+      },
+      receiveTerminalInput: {
+        action: "receive",
+        channel: ref("#/channels/sessionAttach"),
+        messages: [ref("#/channels/sessionAttach/messages/terminalInput")],
+        summary: "Receive raw binary terminal input from a read-write client",
+      },
+      sendReady: {
+        action: "send",
+        channel: ref("#/channels/sessionAttach"),
+        messages: [ref("#/channels/sessionAttach/messages/ready")],
+        summary: "Send the initial session dimensions after the terminal snapshot barrier",
+      },
+      sendResized: {
+        action: "send",
+        channel: ref("#/channels/sessionAttach"),
+        messages: [ref("#/channels/sessionAttach/messages/resized")],
+        summary: "Broadcast updated terminal dimensions",
+      },
+      sendExit: {
+        action: "send",
+        channel: ref("#/channels/sessionAttach"),
+        messages: [ref("#/channels/sessionAttach/messages/exit")],
+        summary: "Notify a client that the process exited, then close the socket",
+      },
+      sendError: {
+        action: "send",
+        channel: ref("#/channels/sessionAttach"),
+        messages: [ref("#/channels/sessionAttach/messages/error")],
+        summary: "Notify a client of a malformed control frame or a terminal-stream failure",
+      },
+      sendTerminalOutput: {
+        action: "send",
+        channel: ref("#/channels/sessionAttach"),
+        messages: [ref("#/channels/sessionAttach/messages/terminalOutput")],
+        summary: "Send raw binary terminal output and snapshots",
+      },
+      receiveEventReply: {
+        action: "receive",
+        channel: ref("#/channels/events"),
+        messages: [ref("#/channels/events/messages/reply")],
+        summary: "Receive the first correlated reply to an event request",
+      },
+      sendEvent: {
+        action: "send",
+        channel: ref("#/channels/events"),
+        messages: [ref("#/channels/events/messages/event")],
+        summary: "Broadcast a live custom or internal session event; request events carry a correlation ID and lifetime",
+      },
+    },
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          description: "The server requires a bearer token by default. Browser WebSocket clients encode the token in the ptys.bearer.<token> subprotocol instead of an Authorization header.",
+        },
+      },
+      schemas: {
+        ResizeControl: ResizeControlSchema,
+        SignalControl: SignalControlSchema,
+        ReadyControl: ReadyControlSchema,
+        ResizedControl: ResizedControlSchema,
+        ExitControl: ExitControlSchema,
+        ErrorControl: ErrorControlSchema,
+        EventControl: EventControlSchema,
+        EventReplyControl: EventReplyControlSchema,
+      },
+      messages: {
+        ResizeControl: { name: "resize", contentType: "application/json", payload: ref("#/components/schemas/ResizeControl") },
+        SignalControl: { name: "signal", contentType: "application/json", payload: ref("#/components/schemas/SignalControl") },
+        TerminalInput: { name: "terminalInput", contentType: "application/octet-stream", payload: { type: "string", contentEncoding: "base64" } },
+        ReadyControl: { name: "ready", contentType: "application/json", payload: ref("#/components/schemas/ReadyControl") },
+        ResizedControl: { name: "resized", contentType: "application/json", payload: ref("#/components/schemas/ResizedControl") },
+        ExitControl: { name: "exit", contentType: "application/json", payload: ref("#/components/schemas/ExitControl") },
+        ErrorControl: { name: "error", contentType: "application/json", payload: ref("#/components/schemas/ErrorControl") },
+        EventControl: { name: "event", contentType: "application/json", payload: ref("#/components/schemas/EventControl") },
+        EventReplyControl: { name: "event.reply", contentType: "application/json", payload: ref("#/components/schemas/EventReplyControl") },
+        TerminalOutput: { name: "terminalOutput", contentType: "application/octet-stream", payload: { type: "string", contentEncoding: "base64" } },
+      },
+    },
+  };
+}

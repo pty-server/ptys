@@ -1,0 +1,855 @@
+openapi: 3.1.0
+info:
+  title: ptys HTTP API
+  version: 0.1.0-next.0
+  description: HTTP control plane for ptys sessions. The terminal stream is documented separately in AsyncAPI.
+  license:
+    name: MIT
+    url: https://opensource.org/license/mit
+servers:
+  - url: /
+    description: The ptys server being addressed
+tags:
+  - name: Server
+    description: Server metadata
+  - name: Directories
+    description: Browsable workspace directories
+  - name: Workspaces
+    description: Workspace lifecycle
+  - name: Sessions
+    description: Terminal session lifecycle
+  - name: Events
+    description: In-session event emission
+  - name: Origins
+    description: Browser origin allowlist
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Required unless the server was started with --no-auth.
+    eventCapability:
+      type: apiKey
+      in: query
+      name: token
+      description: Per-session capability injected through PTYS_EVENT_ENDPOINT.
+  schemas:
+    Workspace:
+      $id: Workspace
+      type: object
+      required:
+        - id
+        - path
+        - realpath
+        - createdAt
+      properties:
+        id:
+          type: string
+        path:
+          type: string
+        realpath:
+          type: string
+        createdAt:
+          type: number
+    DirectoryListing:
+      $id: DirectoryListing
+      type: object
+      required:
+        - breadcrumbs
+        - entries
+      properties:
+        current:
+          $id: DirectoryEntry
+          type: object
+          required: &a1
+            - name
+            - path
+          properties: &a2
+            name:
+              type: string
+            path:
+              type: string
+        breadcrumbs:
+          type: array
+          items: &a3
+            $id: DirectoryEntry
+            type: object
+            required: *a1
+            properties: *a2
+        entries:
+          type: array
+          items: *a3
+        nextCursor:
+          type: string
+    Session:
+      $id: Session
+      type: object
+      required:
+        - id
+        - workspaceId
+        - cmd
+        - args
+        - env
+        - cols
+        - rows
+        - createdAt
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        name:
+          type: string
+        cmd:
+          type: string
+        args:
+          type: array
+          items:
+            type: string
+        env:
+          $id: StringRecord
+          type: object
+          patternProperties: &a5
+            ^(.*)$:
+              type: string
+        cols: &a4
+          minimum: 1
+          type: integer
+        rows: *a4
+        followSize:
+          type: boolean
+        createdAt:
+          type: number
+        exited:
+          $id: SessionExited
+          type: object
+          required:
+            - code
+            - at
+          properties:
+            code:
+              type: number
+            signal:
+              type: number
+            at:
+              type: number
+    ServerInfo:
+      $id: ServerInfo
+      type: object
+      required:
+        - version
+        - protocol
+        - serverId
+        - uptime
+        - sessions
+        - user
+        - workspaces
+      properties:
+        version:
+          type: string
+        protocol:
+          type: integer
+        serverId:
+          type: string
+        uptime:
+          type: number
+        sessions:
+          type: integer
+        user:
+          type: string
+        workspaces:
+          type: integer
+    ErrorResponse:
+      $id: ErrorResponse
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+    CreateWorkspaceRequest:
+      $id: CreateWorkspaceRequest
+      additionalProperties: true
+      type: object
+      required:
+        - path
+      properties:
+        path:
+          minLength: 1
+          type: string
+    CreateSessionRequest:
+      $id: CreateSessionRequest
+      additionalProperties: true
+      type: object
+      required:
+        - cols
+        - rows
+      properties:
+        workspaceId:
+          type: string
+        cmd:
+          minLength: 1
+          type: string
+        args:
+          type: array
+          items:
+            type: string
+        env:
+          $id: StringRecord
+          type: object
+          patternProperties: *a5
+        cols: *a4
+        rows: *a4
+        name:
+          type: string
+        followSize:
+          type: boolean
+    SignalSessionRequest:
+      $id: SignalSessionRequest
+      additionalProperties: true
+      type: object
+      required:
+        - signal
+      properties:
+        signal:
+          minLength: 1
+          type: string
+    UpdateSessionRequest:
+      $id: UpdateSessionRequest
+      additionalProperties: true
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          minLength: 1
+          type: string
+    EventInput:
+      $id: EventInput
+      additionalProperties: true
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          minLength: 1
+          type: string
+        data: {}
+    PublishEventRequest:
+      $id: PublishEventRequest
+      additionalProperties: true
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          minLength: 1
+          type: string
+        data: {}
+        request:
+          type: boolean
+        timeoutSeconds:
+          minimum: 0
+          maximum: 300
+          type: number
+    EventAccepted:
+      $id: EventAccepted
+      type: object
+      required:
+        - delivered
+      properties:
+        delivered:
+          minimum: 0
+          type: integer
+    OriginRequest:
+      $id: OriginRequest
+      additionalProperties: true
+      type: object
+      required:
+        - origin
+      properties:
+        origin:
+          minLength: 1
+          type: string
+    OriginsResponse:
+      $id: OriginsResponse
+      type: object
+      required:
+        - origins
+      properties:
+        origins:
+          type: array
+          items:
+            type: string
+paths:
+  /v1/info:
+    get:
+      tags:
+        - Server
+      operationId: getServerInfo
+      summary: Get server metadata
+      security: &a6
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Server metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServerInfo"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/events:
+    post:
+      tags:
+        - Events
+      operationId: publishSessionEvent
+      summary: Publish an event from a session
+      description: Requires the per-session event capability injected as the `token` query parameter in `PTYS_EVENT_ENDPOINT`.
+      security:
+        - eventCapability: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Session event capability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishEventRequest"
+      responses:
+        "200":
+          description: Request reply
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - event
+                properties:
+                  event:
+                    $ref: "#/components/schemas/EventInput"
+        "202":
+          description: Event accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventAccepted"
+        "400":
+          description: Invalid event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid event capability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: No event subscriber or session exited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Event request timed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/config/origins:
+    get:
+      tags:
+        - Origins
+      operationId: listAllowedOrigins
+      summary: List allowed browser origins
+      security: *a6
+      responses:
+        "200":
+          description: Allowed origins
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OriginsResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Origins
+      operationId: allowOrigin
+      summary: Allow a browser origin immediately
+      description: Changes are in-memory only and are lost when the server stops.
+      security: *a6
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OriginRequest"
+      responses:
+        "200":
+          description: Origin was already allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OriginsResponse"
+        "201":
+          description: Origin allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OriginsResponse"
+        "400":
+          description: Invalid origin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Origins
+      operationId: removeOrigin
+      summary: Remove a browser origin immediately
+      description: Changes are in-memory only and are lost when the server stops.
+      security: *a6
+      parameters:
+        - name: origin
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Origin removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OriginsResponse"
+        "400":
+          description: Invalid origin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Origin not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/directories:
+    get:
+      tags:
+        - Directories
+      operationId: listDirectories
+      summary: List accessible directories
+      security: *a6
+      parameters:
+        - name: path
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Directory to list; omitted to list browse roots.
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Case-insensitive directory-name filter.
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Opaque pagination cursor returned by a prior response.
+      responses:
+        "200":
+          description: Directory listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DirectoryListing"
+        "400":
+          description: Directory is unavailable or the query is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/workspaces:
+    get:
+      tags:
+        - Workspaces
+      operationId: listWorkspaces
+      summary: List workspaces
+      security: *a6
+      responses:
+        "200":
+          description: Workspaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Workspace"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Workspaces
+      operationId: createWorkspace
+      summary: Create or retrieve a workspace for a local path
+      security: *a6
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkspaceRequest"
+      responses:
+        "200":
+          description: Workspace
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        "400":
+          description: Path is missing, does not exist, or is not a directory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/sessions:
+    get:
+      tags:
+        - Sessions
+      operationId: listSessions
+      summary: List sessions
+      security: *a6
+      parameters:
+        - name: workspaceId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Sessions
+      operationId: createSession
+      summary: Create a terminal session
+      description: When omitted, `cmd` defaults to the server user's shell. `workspaceId` defaults to a workspace rooted at the server working directory.
+      security: *a6
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionRequest"
+      responses:
+        "200":
+          description: Session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: Invalid session request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/sessions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Session identifier
+    get:
+      tags:
+        - Sessions
+      operationId: getSession
+      summary: Get a session
+      security: *a6
+      responses:
+        "200":
+          description: Session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      tags:
+        - Sessions
+      operationId: updateSession
+      summary: Update a session name
+      security: *a6
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSessionRequest"
+      responses:
+        "200":
+          description: Updated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: Name is missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Sessions
+      operationId: deleteSession
+      summary: Stop a running session or remove an exited session
+      description: A running session receives the requested signal. An exited session is removed from retained history immediately.
+      security: *a6
+      parameters:
+        - name: signal
+          in: query
+          required: false
+          schema:
+            type: string
+            default: SIGTERM
+      responses:
+        "204":
+          description: Session stopped or removed
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/sessions/{id}/signal:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Session identifier
+    post:
+      tags:
+        - Sessions
+      operationId: signalSession
+      summary: Send a signal to a session
+      security: *a6
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignalSessionRequest"
+      responses:
+        "204":
+          description: Signal sent
+        "400":
+          description: Signal is missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

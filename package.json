@@ -1,0 +1,68 @@
+{
+  "name": "@pty-server/ptys",
+  "version": "0.1.0-next.0",
+  "description": "Run terminal apps as long-lived server-side sessions. Attach/detach from anywhere.",
+  "license": "MIT",
+  "author": "Karol Nowacki",
+  "homepage": "https://github.com/pty-server/ptys#readme",
+  "bugs": {
+    "url": "https://github.com/pty-server/ptys/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pty-server/ptys.git"
+  },
+  "keywords": [
+    "pty",
+    "terminal",
+    "tmux",
+    "session",
+    "remote",
+    "cli",
+    "server"
+  ],
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "bin": {
+    "ptys": "dist/cli.js"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "npm run build -w packages/protocol && tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "npm run build -w packages/protocol && tsc --noEmit",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "docs:generate": "npm run build -w packages/protocol && node scripts/generate-api-docs.mjs",
+    "docs:check": "npm run build -w packages/protocol && node scripts/generate-api-docs.mjs --check && redocly lint docs/openapi.yaml docs/asyncapi.yaml",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.52",
+    "@xterm/addon-serialize": "^0.14.0",
+    "@xterm/addon-unicode11": "^0.9.0",
+    "@xterm/headless": "^6.0.0",
+    "commander": "^12.1.0",
+    "find-my-way": "^9.6.0",
+    "node-pty": "^1.1.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@pty-server/protocol": "*",
+    "@redocly/cli": "^2.39.0",
+    "@types/node": "^24.13.3",
+    "@types/ws": "^8.5.10",
+    "tsdown": "^0.22.14",
+    "typescript": "^5.6.0",
+    "yaml": "^2.9.0"
+  },
+  "files": [
+    "dist"
+  ]
+}
