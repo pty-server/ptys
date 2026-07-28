@@ -35,10 +35,11 @@ export interface EffectiveServerOptions {
   allowOrigins?: string[];
   scrollback?: number;
   maxClosedSessions?: number;
+  shell?: string;
 }
 
 export function validateServerOptions(options: EffectiveServerOptions): void {
-  const { instance, listen, noAuth, allowOrigins, scrollback, maxClosedSessions } = options;
+  const { instance, listen, noAuth, allowOrigins, scrollback, maxClosedSessions, shell } = options;
 
   if (instance !== undefined) {
     validateInstanceName(instance);
@@ -72,5 +73,8 @@ export function validateServerOptions(options: EffectiveServerOptions): void {
   }
   if (maxClosedSessions !== undefined && (!Number.isSafeInteger(maxClosedSessions) || maxClosedSessions < 0)) {
     throw new Error("maxClosedSessions must be a non-negative integer");
+  }
+  if (shell !== undefined && (typeof shell !== "string" || shell.length === 0)) {
+    throw new Error("shell must be a non-empty string");
   }
 }

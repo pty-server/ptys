@@ -35,6 +35,7 @@ export interface ServerServices {
   directoryBrowser: DirectoryBrowser;
   serverId: string;
   startedAt: number;
+  defaultShell: string;
 }
 
 /** Per-listener trust: how a caller on this transport is authenticated, and what it may reconfigure. */

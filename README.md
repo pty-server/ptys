@@ -55,7 +55,7 @@ ptys server stop
 
 | Command | Notable flags |
 | --- | --- |
-| `ptys server` / `ptys server run` | Run the server in the foreground. `--instance`, `--listen` (repeatable), `--token`, `--no-auth`, `--allow-origin`, `--browse-root`, `--scrollback`, `--max-closed-sessions` |
+| `ptys server` / `ptys server run` | Run the server in the foreground. `--instance`, `--listen` (repeatable), `--token`, `--no-auth`, `--allow-origin`, `--browse-root`, `--shell`, `--scrollback`, `--max-closed-sessions` |
 | `ptys server start` | Start a background daemon (not supported on Windows). Same server flags as `server run`. |
 | `ptys server stop` | Stop a daemon. `--instance`, `--all` |
 | `ptys server status` | Show daemon status. `--instance`, `--json` |
@@ -100,12 +100,13 @@ Client commands mirror the split. `--instance <name>` (or `PTYS_INSTANCE`) reach
   "noAuth": false,
   "allowOrigins": ["https://app.example"],
   "browseRoots": ["/absolute/path/to/workspaces"],
+  "shell": "/bin/zsh",
   "scrollback": 5000,
   "maxClosedSessions": 100
 }
 ```
 
-All fields are optional. `instance` starts with a letter or digit and holds only letters, digits, dots, dashes and underscores (at most 64 characters); `listen` is an array of `host:port` strings, with IPv6 bracketed as `[::1]:7801`, and an omitted or empty one means no TCP listener at all; `noAuth` is a boolean; `allowOrigins` is an array of absolute `http(s)` origins; `browseRoots` is an array of existing directories; and `scrollback` and `maxClosedSessions` are non-negative integers. Unknown fields are rejected. Tokens are deliberately not accepted in this file: use `--token`, `PTYS_TOKEN`, or the existing `~/.ptys/token` store.
+All fields are optional. `instance` starts with a letter or digit and holds only letters, digits, dots, dashes and underscores (at most 64 characters); `listen` is an array of `host:port` strings, with IPv6 bracketed as `[::1]:7801`, and an omitted or empty one means no TCP listener at all; `noAuth` is a boolean; `allowOrigins` is an array of absolute `http(s)` origins; `browseRoots` is an array of existing directories; `shell` is a non-empty command run by sessions that name none, and defaults to this user's passwd shell rather than the daemon's inherited `SHELL`, which froze when the daemon detached; and `scrollback` and `maxClosedSessions` are non-negative integers. Unknown fields are rejected. Tokens are deliberately not accepted in this file: use `--token`, `PTYS_TOKEN`, or the existing `~/.ptys/token` store.
 
 The same rules apply to the equivalent command-line flags, and they are checked before anything is started, so a rejected value never leaves a listener or a pidfile behind.
 

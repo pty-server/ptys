@@ -12,6 +12,7 @@ export interface ServerDefaults {
   scrollback?: number;
   browseRoots?: string[];
   maxClosedSessions?: number;
+  shell?: string;
 }
 
 export function configPath(): string {
@@ -42,7 +43,7 @@ export function readServerDefaults(): ServerDefaults {
   }
 
   const config = value as Record<string, unknown>;
-  const allowed = new Set(["instance", "listen", "noAuth", "allowOrigins", "scrollback", "browseRoots", "maxClosedSessions"]);
+  const allowed = new Set(["instance", "listen", "noAuth", "allowOrigins", "scrollback", "browseRoots", "maxClosedSessions", "shell"]);
   for (const key of Object.keys(config)) {
     if (key === "host" || key === "port") {
       throw new Error(`invalid ${path}: ${key} is no longer a setting; use listen: ["127.0.0.1:7801"] to bind an address, and instance to name the server`);
@@ -85,6 +86,9 @@ export function readServerDefaults(): ServerDefaults {
   }
   if (config.maxClosedSessions !== undefined && !isNonNegativeInteger(config.maxClosedSessions)) {
     throw new Error(`invalid ${path}: maxClosedSessions must be a non-negative integer`);
+  }
+  if (config.shell !== undefined && (typeof config.shell !== "string" || config.shell.length === 0)) {
+    throw new Error(`invalid ${path}: shell must be a non-empty string`);
   }
   return config as ServerDefaults;
 }

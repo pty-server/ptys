@@ -16,6 +16,7 @@ import { WorkspaceManager } from "./workspace-manager.js";
 import { DirectoryBrowser, canonicalizeBrowseRoots } from "./directory-browser.js";
 import { DEFAULT_INSTANCE } from "../paths.js";
 import { activeSpawnHelperPath, ensureExecutable } from "../spawn-helper.js";
+import { resolveDefaultShell } from "./default-shell.js";
 import { OriginAllowlist } from "./origin-allowlist.js";
 import { closeHttpServer } from "./close-http-server.js";
 
@@ -30,6 +31,7 @@ export interface StartServerOptions {
   scrollback?: number;
   browseRoots?: string[];
   maxClosedSessions?: number;
+  shell?: string;
   onListenChange?: (listen: ListenAddress[]) => void;
 }
 
@@ -54,6 +56,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     allowOrigins: options.allowOrigins,
     scrollback,
     maxClosedSessions,
+    shell: options.shell,
   });
 
   // Repaired here rather than at the first session request: node-pty ships the helper unexecutable, and
@@ -87,6 +90,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     origins,
     directoryBrowser,
     eventHub,
+    defaultShell: resolveDefaultShell(options.shell),
   };
 
   const listeners = new ListenerManager({

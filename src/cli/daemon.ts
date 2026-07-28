@@ -13,6 +13,7 @@ export interface RunningOptions {
   scrollback: number;
   browseRoots: string[];
   maxClosedSessions: number;
+  shell?: string;
   token?: string;
 }
 
@@ -45,6 +46,7 @@ function isPidfileData(value: unknown): value is PidfileData {
     typeof data.running.scrollback === "number" && Array.isArray(data.running.browseRoots) &&
     data.running.browseRoots.every((root) => typeof root === "string") &&
     typeof data.running.maxClosedSessions === "number" && Number.isSafeInteger(data.running.maxClosedSessions) && data.running.maxClosedSessions >= 0 &&
+    (data.running.shell === undefined || typeof data.running.shell === "string") &&
     (data.running.token === undefined || typeof data.running.token === "string") &&
     (data.controlSocketPath === undefined || typeof data.controlSocketPath === "string");
 }

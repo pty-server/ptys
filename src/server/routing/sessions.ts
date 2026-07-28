@@ -1,4 +1,3 @@
-import { userInfo } from "node:os";
 import { CreateSessionRequestSchema, SignalSessionRequestSchema, UpdateSessionRequestSchema } from "@pty-server/protocol";
 import { Value } from "@sinclair/typebox/value";
 import type { EventHub } from "../event-hub.js";
@@ -8,7 +7,12 @@ import { readJsonBody, registerRoute, sendEmpty, sendError, sendJson, type HttpR
 
 export function registerSessionRoutes(
   router: HttpRouter,
-  dependencies: { sessionManager: SessionManager; workspaceManager: WorkspaceManager; eventHub: EventHub },
+  dependencies: {
+    sessionManager: SessionManager;
+    workspaceManager: WorkspaceManager;
+    eventHub: EventHub;
+    defaultShell: string;
+  },
 ): void {
   registerRoute(router, "POST", "/v1/sessions", async ({ request, response }) => {
     const body = await readJsonBody(request);
@@ -26,7 +30,7 @@ export function registerSessionRoutes(
     const session = dependencies.sessionManager.create({
       workspaceId: workspace.id,
       cwd: workspace.realpath,
-      cmd: body.cmd ?? defaultShell(),
+      cmd: body.cmd ?? dependencies.defaultShell,
       args: body.args,
       env: body.env,
       cols: body.cols,
@@ -77,9 +81,4 @@ export function registerSessionRoutes(
     if (dependencies.sessionManager.signal(id, body.signal)) sendEmpty(response, 204);
     else sendError(response, 404, "session not found");
   });
-}
-
-function defaultShell(): string {
-  if (process.platform === "win32") return process.env.ComSpec ?? "cmd.exe";
-  return process.env.SHELL ?? userInfo().shell ?? "/bin/sh";
 }
