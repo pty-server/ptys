@@ -80,6 +80,8 @@ export function sendRouteError(response: ServerResponse, error: unknown): void {
   } else if (error instanceof PayloadTooLargeError) {
     sendError(response, 413, "JSON body exceeds 64 KiB");
   } else {
+    // The response says nothing useful on purpose, so the daemon log is the only place the cause survives.
+    console.error("ptys: unhandled request error:", error);
     sendError(response, 500, "internal server error");
   }
 }

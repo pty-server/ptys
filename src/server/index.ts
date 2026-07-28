@@ -15,6 +15,7 @@ import { ListenerManager, type PublicListenerFactory } from "./listener-manager.
 import { WorkspaceManager } from "./workspace-manager.js";
 import { DirectoryBrowser, canonicalizeBrowseRoots } from "./directory-browser.js";
 import { DEFAULT_INSTANCE } from "../paths.js";
+import { activeSpawnHelperPath, ensureExecutable } from "../spawn-helper.js";
 import { OriginAllowlist } from "./origin-allowlist.js";
 import { closeHttpServer } from "./close-http-server.js";
 
@@ -54,6 +55,13 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     scrollback,
     maxClosedSessions,
   });
+
+  // Repaired here rather than at the first session request: node-pty ships the helper unexecutable, and
+  // failing the start with the real reason beats one opaque 500 per session for the daemon's whole life.
+  const spawnHelper = activeSpawnHelperPath();
+  if (spawnHelper !== undefined && ensureExecutable(spawnHelper)) {
+    console.error(`ptys: made node-pty's spawn helper executable (${spawnHelper})`);
+  }
 
   if (!CONTROL_SOCKET_SUPPORTED && listen.length === 0) {
     throw new Error("this platform has no control socket; pass --listen <host:port> to bind an address");

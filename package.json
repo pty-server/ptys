@@ -41,6 +41,7 @@
     "test": "npm run build && node --test tests/*.test.mjs",
     "docs:generate": "npm run build -w packages/protocol && node scripts/generate-api-docs.mjs",
     "docs:check": "npm run build -w packages/protocol && node scripts/generate-api-docs.mjs --check && redocly lint docs/openapi.yaml docs/asyncapi.yaml",
+    "postinstall": "node scripts/postinstall.mjs",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
@@ -63,6 +64,7 @@
     "yaml": "^2.9.0"
   },
   "files": [
-    "dist"
+    "dist",
+    "scripts/postinstall.mjs"
   ]
 }

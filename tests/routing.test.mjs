@@ -3,9 +3,31 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { isolatedHome, pickPort, startPtysProcess, waitForListening } from "./helpers.mjs";
+import { isolatedHome, pickPort, registerTypeScriptResolution, startPtysProcess, waitForListening } from "./helpers.mjs";
+
+registerTypeScriptResolution();
+
+const { sendRouteError } = await import("../src/server/routing/utils.ts");
 
 const cliPath = join(fileURLToPath(new URL("..", import.meta.url)), "dist", "cli.js");
+
+test("an unexpected route failure answers 500 and leaves the cause in the log", () => {
+  const response = { statuses: [], bodies: [], writeHead(status) { this.statuses.push(status); }, end(body) { this.bodies.push(body); } };
+  const logged = [];
+  const original = console.error;
+  console.error = (...args) => logged.push(args);
+  try {
+    sendRouteError(response, new Error("posix_spawnp failed."));
+  } finally {
+    console.error = original;
+  }
+
+  assert.deepEqual(response.statuses, [500]);
+  assert.equal(JSON.parse(response.bodies[0]).error, "internal server error");
+  // The 500 body is deliberately opaque, so a swallowed cause here is a cause nobody can ever recover.
+  assert.equal(logged.length, 1);
+  assert.match(String(logged[0][1]), /posix_spawnp failed/);
+});
 
 function call(port, method, path, token) {
   return new Promise((resolve, reject) => {

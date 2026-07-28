@@ -6,7 +6,7 @@ const { version } = JSON.parse(readFileSync(new URL("./package.json", import.met
 };
 
 export default defineConfig({
-  entry: { cli: "src/cli.ts" },
+  entry: { cli: "src/cli.ts", postinstall: "src/postinstall.ts" },
   format: ["esm"],
   target: "node24",
   platform: "node",
