@@ -1,7 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { decide, distTag, fetchPublished, missingEntryFiles, planPublish, selectPack } from "../scripts/publish-workspaces.mjs";
+import {
+  decide,
+  distTag,
+  fetchPublished,
+  missingEntryFiles,
+  planPublish,
+  publishArgs,
+  selectPack,
+} from "../scripts/publish-workspaces.mjs";
 
 function fakeRegistry(t, handler) {
   const server = createServer(handler);
@@ -22,6 +30,19 @@ test("a prerelease never claims the latest dist tag", () => {
   assert.equal(distTag("1.0.0-next.0"), "next");
   assert.equal(distTag("0.1.0"), "latest");
   assert.equal(distTag("1.2.3"), "latest");
+});
+
+test("provenance is requested only from the release job", () => {
+  assert.deepEqual(publishArgs({ version: "0.1.0-next.1", ci: true }), ["--tag", "next", "--provenance"]);
+  assert.deepEqual(publishArgs({ version: "1.0.0", ci: true }), ["--tag", "latest", "--provenance"]);
+  // A local publish has no OIDC identity to attest with, so asking for provenance there only fails.
+  assert.deepEqual(publishArgs({ version: "1.0.0" }), ["--tag", "latest"]);
+  assert.deepEqual(publishArgs({ version: "1.0.0", ci: true, dryRun: true }), [
+    "--tag",
+    "latest",
+    "--provenance",
+    "--dry-run",
+  ]);
 });
 
 test("the tarball report is read from both npm pack --json shapes", () => {

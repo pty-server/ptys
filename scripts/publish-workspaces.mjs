@@ -82,6 +82,10 @@ export function decide({ local, published }) {
   };
 }
 
+export function publishArgs({ version, dryRun = false, ci = false }) {
+  return ["--tag", distTag(version), ...(ci ? ["--provenance"] : []), ...(dryRun ? ["--dry-run"] : [])];
+}
+
 export async function planPublish({ dirs = PACKAGE_DIRS, registry = DEFAULT_REGISTRY, fetchImpl = fetch, packImpl = packPackage } = {}) {
   const plans = [];
   for (const dir of dirs) {
@@ -98,6 +102,7 @@ function publishPackage(dir, extraArgs) {
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
+  const ci = process.env.GITHUB_ACTIONS === "true";
   const registry = process.env.npm_config_registry ?? DEFAULT_REGISTRY;
   // Preflight covers every package before the first publish: a conflict found on the second package must
   // not be discovered after the first one is already public.
@@ -113,9 +118,9 @@ async function main() {
       console.log(`skipping ${plan.name}@${plan.version}: ${plan.reason}`);
       continue;
     }
-    const tag = distTag(plan.version);
-    console.log(`publishing ${plan.name}@${plan.version} as ${tag}${dryRun ? " (dry run)" : ""}`);
-    publishPackage(plan.dir, ["--tag", tag, ...(dryRun ? ["--dry-run"] : [])]);
+    const args = publishArgs({ version: plan.version, dryRun, ci });
+    console.log(`publishing ${plan.name}@${plan.version} as ${distTag(plan.version)}${dryRun ? " (dry run)" : ""}`);
+    publishPackage(plan.dir, args);
   }
 }
 
