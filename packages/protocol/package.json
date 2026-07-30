@@ -1,6 +1,6 @@
 {
   "name": "@pty-server/protocol",
-  "version": "0.1.0-next.2",
+  "version": "0.1.0-next.3",
   "description": "Shared wire/JSON protocol types for pty-server (ptys server and clients).",
   "license": "MIT",
   "repository": {

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ptys HTTP API
-  version: 0.1.0-next.2
+  version: 0.1.0-next.3
   description: HTTP control plane for ptys sessions. The terminal stream is documented separately in AsyncAPI.
   license:
     name: MIT
