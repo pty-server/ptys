@@ -93,6 +93,8 @@ components:
         - cols
         - rows
         - createdAt
+        - pid
+        - cwd
       properties:
         id:
           type: string
@@ -120,6 +122,13 @@ components:
           type: boolean
         createdAt:
           type: number
+        pid:
+          type: integer
+        cwd:
+          type: string
+        process:
+          description: Foreground process name, read live; absent once the session has exited.
+          type: string
         exited:
           $id: SessionExited
           type: object
@@ -159,6 +168,11 @@ components:
           type: string
         workspaces:
           type: integer
+        capabilities:
+          description: Optional server features that are enabled. Absent on servers predating the field; empty when every optional feature is disabled.
+          type: array
+          items:
+            type: string
     ErrorResponse:
       $id: ErrorResponse
       type: object
@@ -224,6 +238,66 @@ components:
         name:
           minLength: 1
           type: string
+    ExecSessionRequest:
+      $id: ExecSessionRequest
+      additionalProperties: true
+      type: object
+      required:
+        - cmd
+      properties:
+        cmd:
+          minLength: 1
+          type: string
+        args:
+          type: array
+          items:
+            type: string
+        cwd:
+          description: "Working directory: the session's spawn directory, or the pty's current directory so it follows cd."
+          anyOf:
+            - const: session
+              type: string
+            - const: live
+              type: string
+        stdin:
+          type: string
+        timeoutMs:
+          minimum: 1
+          maximum: 60000
+          type: integer
+    ExecSessionResponse:
+      $id: ExecSessionResponse
+      type: object
+      required:
+        - code
+        - stdout
+        - stderr
+        - cwd
+        - truncated
+        - timedOut
+        - durationMs
+      properties:
+        code:
+          description: Exit status, or null when the command could not be spawned at all.
+          anyOf:
+            - type: integer
+            - type: "null"
+        signal:
+          type: string
+        stdout:
+          type: string
+        stderr:
+          type: string
+        cwd:
+          description: The directory the command actually ran in, which reveals a live-cwd fallback.
+          type: string
+        truncated:
+          description: True when output reached the cap, which also stops the command.
+          type: boolean
+        timedOut:
+          type: boolean
+        durationMs:
+          type: number
     EventInput:
       $id: EventInput
       additionalProperties: true
@@ -843,6 +917,70 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/sessions/{id}/exec:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Session identifier
+    post:
+      tags:
+        - Sessions
+      operationId: execInSession
+      summary: Run a one-shot command in a session's context
+      description: "Runs `cmd` with `args` as discrete arguments - no shell is involved - in the session's environment, and buffers the output. A command that cannot be spawned at all, such as a missing binary, is reported as `200` with `code: null` and the reason in `stderr`, so a client can tell a missing tool from a broken endpoint. A command that exceeds the output cap or the timeout is signalled rather than left running, so `truncated` or `timedOut` arrives with the signal that stopped it instead of an exit status. The whole route is absent, answering `404`, on a server started with `--disable-exec`; `GET /v1/info` advertises `exec` in `capabilities` when it is available."
+      security: *a6
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExecSessionRequest"
+      responses:
+        "200":
+          description: Command result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecSessionResponse"
+        "400":
+          description: Command is missing or the request is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found, or exec is disabled on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Session has exited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many concurrent commands
           content:
             application/json:
               schema:

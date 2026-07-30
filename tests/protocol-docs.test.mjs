@@ -62,6 +62,7 @@ test("generated documents cover public HTTP and terminal-stream operations only"
     "/v1/info",
     "/v1/sessions",
     "/v1/sessions/{id}",
+    "/v1/sessions/{id}/exec",
     "/v1/sessions/{id}/signal",
     "/v1/workspaces",
   ]);

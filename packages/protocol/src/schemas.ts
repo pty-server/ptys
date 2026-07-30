@@ -47,6 +47,9 @@ export const SessionSchema = Type.Object({
   rows: PositiveIntegerSchema,
   followSize: Type.Optional(Type.Boolean()),
   createdAt: Type.Number(),
+  pid: Type.Integer(),
+  cwd: Type.String(),
+  process: Type.Optional(Type.String({ description: "Foreground process name, read live; absent once the session has exited." })),
   exited: Type.Optional(SessionExitedSchema),
 }, { $id: "Session" });
 export type Session = Static<typeof SessionSchema>;
@@ -59,6 +62,9 @@ export const ServerInfoSchema = Type.Object({
   sessions: Type.Integer(),
   user: Type.String(),
   workspaces: Type.Integer(),
+  capabilities: Type.Optional(Type.Array(Type.String(), {
+    description: "Optional server features that are enabled. Absent on servers predating the field; empty when every optional feature is disabled.",
+  })),
 }, { $id: "ServerInfo" });
 export type ServerInfo = Static<typeof ServerInfoSchema>;
 
@@ -88,6 +94,31 @@ export const SignalSessionRequestSchema = Type.Object({
   signal: Type.String({ minLength: 1 }),
 }, { $id: "SignalSessionRequest", ...requestObjectOptions });
 export type SignalSessionRequest = Static<typeof SignalSessionRequestSchema>;
+
+export const ExecSessionRequestSchema = Type.Object({
+  cmd: Type.String({ minLength: 1 }),
+  args: Type.Optional(Type.Array(Type.String())),
+  cwd: Type.Optional(Type.Union([Type.Literal("session"), Type.Literal("live")], {
+    description: "Working directory: the session's spawn directory, or the pty's current directory so it follows cd.",
+  })),
+  stdin: Type.Optional(Type.String()),
+  timeoutMs: Type.Optional(Type.Integer({ minimum: 1, maximum: 60_000 })),
+}, { $id: "ExecSessionRequest", ...requestObjectOptions });
+export type ExecSessionRequest = Static<typeof ExecSessionRequestSchema>;
+
+export const ExecSessionResponseSchema = Type.Object({
+  code: Type.Union([Type.Integer(), Type.Null()], {
+    description: "Exit status, or null when the command could not be spawned at all.",
+  }),
+  signal: Type.Optional(Type.String()),
+  stdout: Type.String(),
+  stderr: Type.String(),
+  cwd: Type.String({ description: "The directory the command actually ran in, which reveals a live-cwd fallback." }),
+  truncated: Type.Boolean({ description: "True when output reached the cap, which also stops the command." }),
+  timedOut: Type.Boolean(),
+  durationMs: Type.Number(),
+}, { $id: "ExecSessionResponse" });
+export type ExecSessionResponse = Static<typeof ExecSessionResponseSchema>;
 
 export const UpdateSessionRequestSchema = Type.Object({
   name: Type.String({ minLength: 1 }),

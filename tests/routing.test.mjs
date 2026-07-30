@@ -3,7 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { isolatedHome, pickPort, registerTypeScriptResolution, startPtysProcess, waitForListening } from "./helpers.mjs";
+import { realpathSync } from "node:fs";
+import { isolatedHome, pickPort, registerTypeScriptResolution, startPtysProcess, waitFor, waitForListening } from "./helpers.mjs";
 
 registerTypeScriptResolution();
 
@@ -81,4 +82,38 @@ test("HTTP router decodes session parameters and keeps route matching exact", as
     assert.equal(response.status, 404, `${method} ${path}`);
     assert.deepEqual(response.body, { error: "not found" });
   }
+});
+
+test("a listed session identifies its process, and stops claiming one once it exits", async (t) => {
+  const port = pickPort();
+  const token = "routing-introspection-token";
+  const handle = startPtysProcess(t, cliPath, ["server", "--listen", `127.0.0.1:${port}`, "--token", token], {
+    home: isolatedHome("ptys-routing-home-"),
+  });
+  await waitForListening(handle);
+
+  const create = (body) => fetch(`http://127.0.0.1:${port}/v1/sessions`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({ env: {}, cols: 80, rows: 24, ...body }),
+  }).then((response) => response.json());
+
+  const running = await create({ cmd: "cat", args: [] });
+  const exiting = await create({ cmd: "sh", args: ["-c", "exit 0"] });
+
+  const listed = await waitFor(async () => {
+    const sessions = (await call(port, "GET", "/v1/sessions", token)).body;
+    const finished = sessions.find((session) => session.id === exiting.id);
+    return finished?.exited === undefined ? undefined : sessions;
+  });
+
+  const live = listed.find((session) => session.id === running.id);
+  assert.ok(Number.isInteger(live.pid) && live.pid > 0);
+  assert.equal(live.cwd, realpathSync(process.cwd()));
+  assert.equal(typeof live.process, "string");
+
+  const finished = listed.find((session) => session.id === exiting.id);
+  assert.ok(Number.isInteger(finished.pid) && finished.pid > 0, "pid stays meaningful as history");
+  assert.equal(finished.cwd, realpathSync(process.cwd()));
+  assert.equal(finished.process, undefined, "there is no foreground process once the session has exited");
 });

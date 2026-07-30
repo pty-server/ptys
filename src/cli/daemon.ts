@@ -14,6 +14,7 @@ export interface RunningOptions {
   browseRoots: string[];
   maxClosedSessions: number;
   shell?: string;
+  disableExec?: boolean;
   token?: string;
 }
 
@@ -47,6 +48,7 @@ function isPidfileData(value: unknown): value is PidfileData {
     data.running.browseRoots.every((root) => typeof root === "string") &&
     typeof data.running.maxClosedSessions === "number" && Number.isSafeInteger(data.running.maxClosedSessions) && data.running.maxClosedSessions >= 0 &&
     (data.running.shell === undefined || typeof data.running.shell === "string") &&
+    (data.running.disableExec === undefined || typeof data.running.disableExec === "boolean") &&
     (data.running.token === undefined || typeof data.running.token === "string") &&
     (data.controlSocketPath === undefined || typeof data.controlSocketPath === "string");
 }

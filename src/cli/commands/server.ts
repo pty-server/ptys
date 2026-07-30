@@ -20,6 +20,7 @@ const SERVER_DAEMON_OPTIONS: OptionSpec[] = [
   { flags: "--allow-origin <origin>", description: "allow a WS Origin (repeatable)", coerce: appendValue },
   { flags: "--browse-root <path>", description: "directory root exposed to clients (repeatable)", coerce: appendValue },
   { flags: "--shell <path>", description: "shell for sessions that do not name a command (default: this user's passwd shell)" },
+  { flags: "--disable-exec", description: "remove POST /v1/sessions/:id/exec, which otherwise runs commands as this user" },
   { flags: "--scrollback <n>", description: "scrollback lines per session", coerce: (value) => Number(value) },
   { flags: "--max-closed-sessions <n>", description: "closed sessions to retain", coerce: (value) => Number(value) },
 ];

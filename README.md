@@ -55,7 +55,7 @@ ptys server stop
 
 | Command | Notable flags |
 | --- | --- |
-| `ptys server` / `ptys server run` | Run the server in the foreground. `--instance`, `--listen` (repeatable), `--token`, `--no-auth`, `--allow-origin`, `--browse-root`, `--shell`, `--scrollback`, `--max-closed-sessions` |
+| `ptys server` / `ptys server run` | Run the server in the foreground. `--instance`, `--listen` (repeatable), `--token`, `--no-auth`, `--allow-origin`, `--browse-root`, `--shell`, `--scrollback`, `--max-closed-sessions`, `--disable-exec` |
 | `ptys server start` | Start a background daemon (not supported on Windows). Same server flags as `server run`. |
 | `ptys server stop` | Stop a daemon. `--instance`, `--all` |
 | `ptys server status` | Show daemon status. `--instance`, `--json` |
@@ -102,11 +102,12 @@ Client commands mirror the split. `--instance <name>` (or `PTYS_INSTANCE`) reach
   "browseRoots": ["/absolute/path/to/workspaces"],
   "shell": "/bin/zsh",
   "scrollback": 5000,
-  "maxClosedSessions": 100
+  "maxClosedSessions": 100,
+  "disableExec": false
 }
 ```
 
-All fields are optional. `instance` starts with a letter or digit and holds only letters, digits, dots, dashes and underscores (at most 64 characters); `listen` is an array of `host:port` strings, with IPv6 bracketed as `[::1]:7801`, and an omitted or empty one means no TCP listener at all; `noAuth` is a boolean; `allowOrigins` is an array of absolute `http(s)` origins; `browseRoots` is an array of existing directories; `shell` is a non-empty command run by sessions that name none, and defaults to this user's passwd shell rather than the daemon's inherited `SHELL`, which froze when the daemon detached; and `scrollback` and `maxClosedSessions` are non-negative integers. Unknown fields are rejected. Tokens are deliberately not accepted in this file: use `--token`, `PTYS_TOKEN`, or the existing `~/.ptys/token` store.
+All fields are optional. `instance` starts with a letter or digit and holds only letters, digits, dots, dashes and underscores (at most 64 characters); `listen` is an array of `host:port` strings, with IPv6 bracketed as `[::1]:7801`, and an omitted or empty one means no TCP listener at all; `noAuth` and `disableExec` are booleans; `allowOrigins` is an array of absolute `http(s)` origins; `browseRoots` is an array of existing directories; `shell` is a non-empty command run by sessions that name none, and defaults to this user's passwd shell rather than the daemon's inherited `SHELL`, which froze when the daemon detached; and `scrollback` and `maxClosedSessions` are non-negative integers. Unknown fields are rejected. Tokens are deliberately not accepted in this file: use `--token`, `PTYS_TOKEN`, or the existing `~/.ptys/token` store.
 
 The same rules apply to the equivalent command-line flags, and they are checked before anything is started, so a rejected value never leaves a listener or a pidfile behind.
 
@@ -127,6 +128,20 @@ ptys config listen remove 127.0.0.1:7801
 These commands are accepted **only over the control socket**, so they take `--instance`, never `--server`: opening a network listener is exactly the privilege a network caller must not have, and the reply carries the token. Like runtime origins, runtime listeners are lost when the server stops - `ptys server restart` replays the `--listen` addresses the daemon was started with, and nothing else. `ptys server status` shows what it is bound to now.
 
 `--no-auth` is for trusted local use only. It refuses any non-loopback `--listen` address, accepts API requests only when their `Host` header exactly names one of the bound addresses, and requires `Content-Type: application/json` for JSON API requests. Use normal token authentication for any less-trusted setup, and read [Security](#security) before exposing a server beyond loopback.
+
+### Session introspection and `exec`
+
+Every session on the wire carries `pid`, `cwd` and, while it is running, `process` - the name of whatever is in the foreground right now. `POST /v1/sessions/{id}/exec` complements them by running one buffered command in that session's directory and environment:
+
+```sh
+curl -H "authorization: Bearer $PTYS_TOKEN" -H 'content-type: application/json' \
+  -d '{"cmd":"tmux","args":["list-windows"],"cwd":"live"}' \
+  http://127.0.0.1:7801/v1/sessions/$ID/exec
+```
+
+`cwd` selects `"session"` (the directory it was started in, the default) or `"live"` (where the pty is now, so it follows `cd`), and the response says which one it actually used. `cmd` and `args` are passed as discrete arguments - there is no shell, so nothing in them is expanded. A command that cannot be run at all, such as a missing binary, comes back as `200` with `code: null` and the reason in `stderr`, so a client can tell a missing tool from a broken server. Output is capped at 1 MiB per stream, and a command that reaches the cap is stopped rather than drained, so `truncated: true` comes back with `code: null` and the signal that stopped it, not the exit status the command would have had. Commands time out after 5 seconds by default and 60 at most (`timedOut`), and a session may have 4 commands in flight at once, 16 across the server, before further requests get `429`. A stopped command - timed out or truncated - is sent `SIGTERM` and then `SIGKILL` two seconds later, so a request always answers and its slot always comes back, however the command behaves.
+
+This is on by default and **grants any holder of the token the ability to run commands as the server's user**, which the session API already allowed less conveniently. `--disable-exec` (or `"disableExec": true`) removes the route entirely, so it answers `404`. `GET /v1/info` reports `capabilities: ["exec"]` when it is available and `[]` when it is not.
 
 While attached with `ptys attach` or `ptys run`, press `Ctrl-P` then `Ctrl-Q` to detach without stopping the session. To send `Ctrl-P` to the attached program, press `Ctrl-P` twice; a lone `Ctrl-P` is held until the next keypress.
 

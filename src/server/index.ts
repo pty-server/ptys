@@ -4,6 +4,7 @@ import { AttachRegistry } from "./ws/attach-registry.js";
 import { createAttachUpgradeHandler } from "./ws/attach.js";
 import { CONTROL_SOCKET_SUPPORTED, listenControlSocket, prepareControlSocketPath, type ControlSocket } from "./control-socket.js";
 import { EVENTS_PATH, EventHub } from "./event-hub.js";
+import { ExecRunner } from "./exec.js";
 import { createEventsUpgradeHandler } from "./ws/events.js";
 import { isLoopbackHost } from "./auth.js";
 import { getOrCreateIdentity } from "./identity.js";
@@ -32,6 +33,7 @@ export interface StartServerOptions {
   browseRoots?: string[];
   maxClosedSessions?: number;
   shell?: string;
+  disableExec?: boolean;
   onListenChange?: (listen: ListenAddress[]) => void;
 }
 
@@ -48,6 +50,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
   const noAuth = options.noAuth ?? false;
   const scrollback = options.scrollback ?? 5000;
   const maxClosedSessions = options.maxClosedSessions;
+  const disableExec = options.disableExec ?? false;
 
   validateServerOptions({
     instance,
@@ -57,6 +60,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     scrollback,
     maxClosedSessions,
     shell: options.shell,
+    disableExec,
   });
 
   // Repaired here rather than at the first session request: node-pty ships the helper unexecutable, and
@@ -82,6 +86,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
   const attachRegistry = new AttachRegistry();
   bridgeSessionEvents(sessionManager, eventHub);
 
+  const exec = disableExec ? undefined : new ExecRunner();
   const services: ServerServices = {
     workspaceManager,
     sessionManager,
@@ -91,6 +96,8 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     directoryBrowser,
     eventHub,
     defaultShell: resolveDefaultShell(options.shell),
+    capabilities: exec === undefined ? [] : ["exec"],
+    ...(exec === undefined ? {} : { exec }),
   };
 
   const listeners = new ListenerManager({

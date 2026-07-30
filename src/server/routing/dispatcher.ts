@@ -3,6 +3,7 @@ import Router from "find-my-way";
 import { extractBearerToken, verifyToken } from "../auth.js";
 import type { DirectoryBrowser } from "../directory-browser.js";
 import { EVENTS_PATH, type EventHub } from "../event-hub.js";
+import type { ExecRunner } from "../exec.js";
 import type { ListenerManager, PublicListenerFactory } from "../listener-manager.js";
 import type { OriginAllowlist } from "../origin-allowlist.js";
 import type { ListenAddress } from "../server-options.js";
@@ -36,6 +37,8 @@ export interface ServerServices {
   serverId: string;
   startedAt: number;
   defaultShell: string;
+  capabilities: string[];
+  exec?: ExecRunner;
 }
 
 /** Per-listener trust: how a caller on this transport is authenticated, and what it may reconfigure. */

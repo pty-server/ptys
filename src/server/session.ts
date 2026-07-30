@@ -20,6 +20,10 @@ export interface Session {
   readonly workspaceId: string;
   readonly followSize: boolean;
   readonly everAttached: boolean;
+  readonly environment: Record<string, string | undefined>;
+  readonly pid: number;
+  readonly cwd: string;
+  readonly exited: SessionWire["exited"];
   markAttached(): void;
   write(data: string | Buffer): void;
   resize(cols: number, rows: number): void;
@@ -62,6 +66,7 @@ export class PtySession implements Session {
   rows: number;
   readonly createdAt: number;
   readonly cwd: string;
+  readonly environment: Record<string, string | undefined>;
   readonly pty: IPty;
   exited: SessionWire["exited"];
   everAttached = false;
@@ -92,9 +97,10 @@ export class PtySession implements Session {
     const eventEnvironment = options.eventEndpoint !== undefined && options.eventToken !== undefined
       ? { PTYS_EVENT_ENDPOINT: `${options.eventEndpoint}?token=${encodeURIComponent(options.eventToken)}` }
       : {};
+    this.environment = { COLORTERM: "truecolor", TERM: "xterm-256color", ...parentEnvironment, ...this.env, ...eventEnvironment };
     this.pty = spawn(this.cmd, this.args, {
       cwd: this.cwd,
-      env: { COLORTERM: "truecolor", TERM: "xterm-256color", ...parentEnvironment, ...this.env, ...eventEnvironment },
+      env: this.environment,
       cols: this.cols,
       rows: this.rows,
       name: "xterm-256color",
@@ -201,6 +207,19 @@ export class PtySession implements Session {
     return () => this.titleCallbacks.delete(callback);
   }
 
+  get pid(): number {
+    return this.pty.pid;
+  }
+
+  private get foregroundProcess(): string | undefined {
+    if (this.exited !== undefined) return undefined;
+    try {
+      return this.pty.process;
+    } catch {
+      return undefined;
+    }
+  }
+
   toJSON(): SessionWire {
     return {
       id: this.id,
@@ -213,6 +232,9 @@ export class PtySession implements Session {
       rows: this.rows,
       followSize: this.followSize,
       createdAt: this.createdAt,
+      pid: this.pid,
+      cwd: this.cwd,
+      process: this.foregroundProcess,
       exited: this.exited,
     };
   }

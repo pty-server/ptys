@@ -1,4 +1,4 @@
-import type { DirectoryListing, Listener, ListenersResponse, ServerInfo, Session, Workspace } from "@pty-server/protocol";
+import type { DirectoryListing, ExecSessionRequest, ExecSessionResponse, Listener, ListenersResponse, ServerInfo, Session, Workspace } from "@pty-server/protocol";
 import { describeTarget, sendRequest } from "./http.js";
 import type { ServerTarget } from "./target.js";
 
@@ -125,6 +125,13 @@ export class ApiClient {
     await this.request<void>(`/v1/sessions/${encodeURIComponent(id)}/signal`, {
       method: "POST",
       body: { signal },
+    });
+  }
+
+  async execSession(id: string, input: ExecSessionRequest): Promise<ExecSessionResponse> {
+    return this.request<ExecSessionResponse>(`/v1/sessions/${encodeURIComponent(id)}/exec`, {
+      method: "POST",
+      body: input,
     });
   }
 

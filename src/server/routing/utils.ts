@@ -1,5 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type Router from "find-my-way";
+import type { TSchema } from "@sinclair/typebox";
+import { ValueErrorType } from "@sinclair/typebox/errors";
+import { Value } from "@sinclair/typebox/value";
 
 export const MAX_JSON_BODY_BYTES = 64 * 1024;
 
@@ -70,6 +73,13 @@ export function sendEmpty(response: ServerResponse, statusCode: number): void {
 
 export function sendError(response: ServerResponse, statusCode: number, error: string): void {
   sendJson(response, statusCode, { error });
+}
+
+export function describeInvalidBody(schema: TSchema, body: unknown, fallback: string): string {
+  const [first] = Value.Errors(schema, body);
+  const property = first === undefined ? undefined : first.path.split("/")[1];
+  if (property === undefined || property.length === 0) return fallback;
+  return first?.type === ValueErrorType.ObjectRequiredProperty ? `${property} is required` : `${property} is invalid`;
 }
 
 export function sendRouteError(response: ServerResponse, error: unknown): void {

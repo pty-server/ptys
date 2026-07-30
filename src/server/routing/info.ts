@@ -12,6 +12,7 @@ export function registerInfoRoutes(
     startedAt: number;
     sessionManager: SessionManager;
     workspaceManager: WorkspaceManager;
+    capabilities: string[];
   },
 ): void {
   registerRoute(router, "GET", "/v1/info", ({ response }) => {
@@ -23,6 +24,7 @@ export function registerInfoRoutes(
       sessions: dependencies.sessionManager.list().length,
       user: userInfo().username,
       workspaces: dependencies.workspaceManager.list().length,
+      capabilities: dependencies.capabilities,
     };
     sendJson(response, 200, info);
   });

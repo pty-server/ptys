@@ -20,6 +20,7 @@ export interface ServerCommandOptions {
   browseRoot?: string[];
   maxClosedSessions?: number;
   shell?: string;
+  disableExec?: boolean;
 }
 
 export interface ServerConfig {
@@ -76,8 +77,9 @@ export function resolveServerConfig(options: ServerCommandOptions): ServerConfig
   const scrollback = options.scrollback ?? defaults.scrollback ?? 5000;
   const maxClosedSessions = options.maxClosedSessions ?? defaults.maxClosedSessions ?? DEFAULT_MAX_CLOSED_SESSIONS;
   const shell = options.shell ?? defaults.shell;
+  const disableExec = options.disableExec ?? defaults.disableExec ?? false;
 
-  validateServerOptions({ instance, listen, noAuth, allowOrigins, scrollback, maxClosedSessions, shell });
+  validateServerOptions({ instance, listen, noAuth, allowOrigins, scrollback, maxClosedSessions, shell, disableExec });
 
   return {
     instance,
@@ -89,6 +91,7 @@ export function resolveServerConfig(options: ServerCommandOptions): ServerConfig
       browseRoots: canonicalizeBrowseRoots(options.browseRoot ?? defaults.browseRoots),
       maxClosedSessions,
       ...(shell === undefined ? {} : { shell }),
+      disableExec,
     },
   };
 }
@@ -131,7 +134,7 @@ function logTail(path: string): string {
 
 async function launchDaemon(input: { instance: string; running: RunningOptions }): Promise<StartOutcome> {
   const { instance, running } = input;
-  const { listen, noAuth, allowOrigins, scrollback, browseRoots, maxClosedSessions, shell, token } = running;
+  const { listen, noAuth, allowOrigins, scrollback, browseRoots, maxClosedSessions, shell, disableExec, token } = running;
   const existing = readPidfile(instance);
   if (existing !== undefined && await isDaemonAlive(existing)) {
     return { kind: "already-running", instance, pid: existing.pid };
@@ -140,7 +143,7 @@ async function launchDaemon(input: { instance: string; running: RunningOptions }
   const path = logPath(instance);
   mkdirSync(runDir(), { recursive: true, mode: 0o700 });
   const logFd = openSync(path, "a", 0o600);
-  const flags = ["server", "--instance", instance, ...listen.flatMap((address) => ["--listen", formatListenAddress(address)]), ...(noAuth ? ["--no-auth"] : []),...allowOrigins.flatMap((origin) => ["--allow-origin", origin]), ...browseRoots.flatMap((root) => ["--browse-root", root]), "--scrollback", String(scrollback), "--max-closed-sessions", String(maxClosedSessions), ...(shell === undefined ? [] : ["--shell", shell])];
+  const flags = ["server", "--instance", instance, ...listen.flatMap((address) => ["--listen", formatListenAddress(address)]), ...(noAuth ? ["--no-auth"] : []),...allowOrigins.flatMap((origin) => ["--allow-origin", origin]), ...browseRoots.flatMap((root) => ["--browse-root", root]), "--scrollback", String(scrollback), "--max-closed-sessions", String(maxClosedSessions), ...(shell === undefined ? [] : ["--shell", shell]), ...(disableExec === true ? ["--disable-exec"] : [])];
   const child = spawn(process.execPath, [process.argv[1], ...flags], {
     detached: true,
     stdio: ["ignore", logFd, logFd, "ipc"],
@@ -176,7 +179,7 @@ function recordListenChange(instance: string, addresses: ListenAddress[]): void 
  */
 export async function startForeground(config: ServerConfig, token: string | undefined): Promise<ForegroundServer> {
   const { instance, running } = config;
-  const { listen, noAuth, allowOrigins, scrollback, browseRoots, maxClosedSessions, shell } = running;
+  const { listen, noAuth, allowOrigins, scrollback, browseRoots, maxClosedSessions, shell, disableExec } = running;
   const started = await startServer({
     instance,
     listen,
@@ -187,6 +190,7 @@ export async function startForeground(config: ServerConfig, token: string | unde
     browseRoots,
     maxClosedSessions,
     ...(shell === undefined ? {} : { shell }),
+    disableExec,
     onListenChange: (addresses) => recordListenChange(instance, addresses),
   });
 
@@ -278,8 +282,8 @@ export async function restartDaemon(instance: string): Promise<RestartOutcome> {
     return { kind: "not-running", instance };
   }
   const stale = await stopInstance(daemon) === "stale";
-  const { listen, noAuth, allowOrigins, scrollback, maxClosedSessions, shell } = daemon.running;
-  validateServerOptions({ instance: daemon.instance, listen, noAuth, allowOrigins, scrollback, maxClosedSessions, shell });
+  const { listen, noAuth, allowOrigins, scrollback, maxClosedSessions, shell, disableExec } = daemon.running;
+  validateServerOptions({ instance: daemon.instance, listen, noAuth, allowOrigins, scrollback, maxClosedSessions, shell, disableExec });
   return {
     kind: "restarted",
     instance: daemon.instance,

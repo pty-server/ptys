@@ -120,9 +120,52 @@ test("~/.ptys.json supplies daemon defaults and CLI flags override them", async 
       browseRoots: [root],
       scrollback: 77,
       maxClosedSessions: 1,
+      disableExec: false,
     });
     const directories = await fetch(`http://127.0.0.1:${port}/v1/directories`).then((response) => response.json());
     assert.equal(directories.entries[0].path, root);
+
+    const stopped = await runCli(["server", "stop"], home);
+    assert.equal(stopped.code, 0, stopped.stderr);
+  } finally {
+    await cleanup(home);
+  }
+});
+
+test("daemon restart preserves --disable-exec, so a hardened daemon stays hardened", async () => {
+  const home = isolatedHome();
+  const port = pickPort();
+  try {
+    const started = await runCli(["server", "start", "--no-auth", "--listen", `127.0.0.1:${port}`, "--disable-exec"], home);
+    assert.equal(started.code, 0, started.stderr);
+    const before = await fetch(`http://127.0.0.1:${port}/v1/info`).then((response) => response.json());
+    assert.deepEqual(before.capabilities, []);
+
+    const restarted = await runCli(["server", "restart"], home);
+    assert.equal(restarted.code, 0, restarted.stderr);
+    await waitFor(() => reachable(port) ? true : undefined);
+    const after = await fetch(`http://127.0.0.1:${port}/v1/info`).then((response) => response.json());
+    assert.deepEqual(after.capabilities, [], "the respawn argv dropped --disable-exec");
+  } finally {
+    await cleanup(home);
+  }
+});
+
+test("a pidfile predating disableExec still describes a live daemon", async () => {
+  const home = isolatedHome();
+  const port = pickPort();
+  const pidfile = join(home, ".ptys", "run", "default.pid");
+  try {
+    const started = await runCli(["server", "start", "--no-auth", "--listen", `127.0.0.1:${port}`], home);
+    assert.equal(started.code, 0, started.stderr);
+
+    const data = JSON.parse(readFileSync(pidfile, "utf8"));
+    delete data.running.disableExec;
+    writeFileSync(pidfile, JSON.stringify(data));
+
+    const status = await runCli(["server", "status", "--json"], home);
+    assert.equal(status.code, 0, status.stderr);
+    assert.equal(JSON.parse(status.stdout)[0].alive, true);
 
     const stopped = await runCli(["server", "stop"], home);
     assert.equal(stopped.code, 0, stopped.stderr);

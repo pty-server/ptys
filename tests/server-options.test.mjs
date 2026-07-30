@@ -27,6 +27,7 @@ test("validateServerOptions accepts effective defaults and rejects each bad valu
     allowOrigins: ["http://localhost:5173"],
     scrollback: 0,
     maxClosedSessions: 0,
+    disableExec: false,
   });
   validateServerOptions({ instance: "default", listen: [], noAuth: true });
 
@@ -46,6 +47,7 @@ test("validateServerOptions accepts effective defaults and rejects each bad valu
   assert.throws(() => validateServerOptions({ scrollback: -1 }), /scrollback must be a non-negative integer/);
   assert.throws(() => validateServerOptions({ scrollback: 1.5 }), /scrollback must be a non-negative integer/);
   assert.throws(() => validateServerOptions({ maxClosedSessions: -1 }), /maxClosedSessions must be a non-negative integer/);
+  assert.throws(() => validateServerOptions({ disableExec: "yes" }), /disableExec must be a boolean/);
 });
 
 test("a foreground server refuses to start on a bad flag value", async () => {
@@ -83,6 +85,15 @@ test("an invalid value in ~/.ptys.json is refused on the same terms as a flag", 
   const result = await runCli(["server", "--no-auth", "--listen", `127.0.0.1:${await getPort()}`], home);
   assert.notEqual(result.code, 0, result.stdout);
   assert.match(result.stderr, /allowed origin must be an absolute http\(s\) origin/);
+});
+
+test("~/.ptys.json rejects a non-boolean disableExec", async () => {
+  const home = isolatedHome("ptys-options-sub-");
+  writeFileSync(join(home, ".ptys.json"), JSON.stringify({ disableExec: "yes" }));
+
+  const result = await runCli(["server", "--no-auth", "--listen", `127.0.0.1:${await getPort()}`], home);
+  assert.notEqual(result.code, 0, result.stdout);
+  assert.match(result.stderr, /disableExec must be a boolean/);
 });
 
 test("~/.ptys.json rejects the removed host and port settings by name", async () => {

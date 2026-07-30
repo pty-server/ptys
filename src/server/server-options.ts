@@ -36,10 +36,11 @@ export interface EffectiveServerOptions {
   scrollback?: number;
   maxClosedSessions?: number;
   shell?: string;
+  disableExec?: boolean;
 }
 
 export function validateServerOptions(options: EffectiveServerOptions): void {
-  const { instance, listen, noAuth, allowOrigins, scrollback, maxClosedSessions, shell } = options;
+  const { instance, listen, noAuth, allowOrigins, scrollback, maxClosedSessions, shell, disableExec } = options;
 
   if (instance !== undefined) {
     validateInstanceName(instance);
@@ -76,5 +77,8 @@ export function validateServerOptions(options: EffectiveServerOptions): void {
   }
   if (shell !== undefined && (typeof shell !== "string" || shell.length === 0)) {
     throw new Error("shell must be a non-empty string");
+  }
+  if (disableExec !== undefined && typeof disableExec !== "boolean") {
+    throw new Error("disableExec must be a boolean");
   }
 }
