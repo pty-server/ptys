@@ -1,7 +1,7 @@
 import { Value } from "@sinclair/typebox/value";
 import { EventInputSchema, type EventInput } from "@pty-server/protocol";
 import { BaseCommand, type CommandContext, type OptionSpec } from "../command.js";
-import { parseEndpoint, sendRequest, type HttpResponse } from "../http.js";
+import { describeTarget, parseEndpoint, sendRequest, type HttpResponse } from "../http.js";
 
 export interface EventCommandOptions {
   request?: boolean;
@@ -16,6 +16,22 @@ function parseTimeout(value: string | undefined, request: boolean): number | und
     throw new Error("--timeout must be a number of seconds from 0 to 300");
   }
   return seconds;
+}
+
+function describeTransportError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const code = "code" in error && typeof error.code === "string" ? error.code : undefined;
+  if (code === undefined || error.message.includes(code)) return error.message;
+  return `${code}: ${error.message}`;
+}
+
+function describeResponseError(response: HttpResponse, body: { error?: unknown } | undefined): string {
+  const status = response.statusText.length === 0
+    ? String(response.status)
+    : `${response.status} ${response.statusText}`;
+  if (typeof body?.error === "string") return `${status}: ${body.error}`;
+  const snippet = response.body.replace(/\s+/g, " ").trim().slice(0, 200);
+  return snippet.length === 0 ? status : `${status}: ${snippet}`;
 }
 
 export class EventCommand extends BaseCommand<[string], EventCommandOptions> {
@@ -60,8 +76,8 @@ export class EventCommand extends BaseCommand<[string], EventCommandOptions> {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...event, request, ...(timeoutSeconds === undefined ? {} : { timeoutSeconds }) }),
       });
-    } catch {
-      throw new Error("event request failed");
+    } catch (error) {
+      throw new Error(`event request to ${describeTarget(target)} failed: ${describeTransportError(error)}`);
     }
     let body: { error?: unknown; event?: { data?: unknown } } | undefined;
     try {
@@ -70,8 +86,7 @@ export class EventCommand extends BaseCommand<[string], EventCommandOptions> {
       body = undefined;
     }
     if (response.status < 200 || response.status >= 300) {
-      const detail = typeof body?.error === "string" ? body.error : "event request failed";
-      throw new Error(detail);
+      throw new Error(`event request failed: ${describeResponseError(response, body)}`);
     }
     if (request) console.log(JSON.stringify(body?.event?.data));
   }
