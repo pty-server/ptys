@@ -24,8 +24,16 @@ apart from daemon mode (`ptys server start`), but neither is covered by CI yet -
 signals, terminal I/O, and shell selection are all platform-sensitive. Coverage for other platforms is
 planned.
 
-`node-pty` is a native addon. Where no prebuilt binary matches, building it needs a C++ toolchain such as
-`python3`, `make`, and a C compiler.
+`node-pty` is a native addon, pinned to a version that ships prebuilt binaries for linux-x64, linux-arm64,
+darwin-x64, darwin-arm64, win32-x64 and win32-arm64. Those load without running any install script, so npm
+versions that block dependency lifecycle scripts by default install ptys unchanged.
+
+Where no prebuilt binary matches, `node-pty` falls back to compiling itself, which needs both a C++ toolchain
+(`python3`, `make`, a C compiler) and permission to run that install script:
+
+```sh
+npm i -g @pty-server/ptys@next --allow-scripts=node-pty
+```
 
 ## Quickstart
 
